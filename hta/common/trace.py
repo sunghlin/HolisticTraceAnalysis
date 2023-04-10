@@ -19,7 +19,7 @@ import pandas as pd
 from hta.common.trace_file import get_trace_files
 from hta.configs.config import logger
 from hta.configs.default_values import DEFAULT_TRACE_DIR
-from hta.utils.utils import get_memory_usage, normalize_path
+from hta.utils.utils import get_memory_usage, normalize_path, get_mp_pool_size
 
 MetaData = Dict[str, Any]
 PHASE_COUNTER: str = "C"
@@ -459,8 +459,14 @@ class Trace:
             logger.debug(f"finished parsing for all {len(ranks)} ranks")
         else:
             num_procs = min(mp.cpu_count(), len(ranks))
+            if len(ranks) <= 1:
+                num_procs = min(len(ranks), mp.cpu_count())
+            else:
+                one_rank_data = parse_trace_dict(trace_paths[0])
+                num_procs = get_mp_pool_size(one_rank_data, len(ranks))
             logger.debug(f"using {num_procs} processes for parsing.")
-            with mp.get_context("spawn").Pool(num_procs) as pool:
+
+            with mp.get_context("fork").Pool(num_procs) as pool:
                 results = pool.map(parse_trace_dataframe, trace_paths)
                 pool.close()
                 pool.join()

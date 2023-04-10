@@ -2,6 +2,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import multiprocessing as mp
 import sys
 from collections import deque
 from enum import Enum
@@ -9,6 +10,9 @@ from pathlib import Path
 from typing import Any, List, Set
 
 import pandas as pd
+import psutil
+
+from hta.configs.default_values import MAX_NUM_PROCESSES
 
 
 class KernelType(Enum):
@@ -174,3 +178,20 @@ def flatten_column_names(df: pd.DataFrame) -> None:
     """Flatten a DataFrame's a multiple index column names to a single string"""
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = ["_".join(col).rstrip("_") for col in df.columns]
+
+def get_mp_pool_size(obj: object, num_objs: int) -> int:
+    """
+    Estimate the maximum pool size for multiprocessing
+
+    Args:
+        obj (object): one instance of the objects to be processed
+        num_objs (int): the total number of objects to be processed
+
+    Return:
+        the recommend pool size
+    """
+    obj_mem = get_memory_usage(obj)
+    free_mem = psutil.virtual_memory().available
+    # Leave 20% buffer for system and other processes
+    max_np = int(0.8 * free_mem / obj_mem)
+    return min(max_np, num_objs, MAX_NUM_PROCESSES, mp.cpu_count())
